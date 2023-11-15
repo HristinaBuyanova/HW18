@@ -125,3 +125,12 @@ final class Worker: Thread {
     }
 }
 
+// MARK: - Instances and Startup
+
+let chip = SaveChip<Chip>()
+let generateThread = Generate(saveChip: chip)
+let workerThread = Worker(saveChip: chip)
+
+generateThread.start()
+workerThread.start()
+
