@@ -53,13 +53,75 @@ final class SaveChip<T> {
     }
 }
 
-var array = [Chip]()
+class Generate: Thread {
+    private var timer = Timer()
+    static var nsAvailable = false
+    static var isGenerateNow = true
+    static var nsCondition = NSCondition()
+    private var saveChip: SaveChip<Chip>
+    private var runCount = 0
+
+    init(saveChip: SaveChip<Chip>){
+        self.saveChip = saveChip
+    }
 
 
-final class Generate: Thread {
+    override func main() {
+        print("Generate thread started work")
+        makeChip()
+        print("Generate thread finish work")
+    }
 
+    private func makeChip() {
+
+        timer = Timer(timeInterval: 2, repeats: true) { [self] _ in
+            Generate.nsCondition.lock()
+            let chip = Chip.make()
+            saveChip.push(chip)
+            print("Push: \(chip)")
+
+            Generate.nsAvailable = true
+            Generate.nsCondition.signal()
+            Generate.nsCondition.unlock()
+
+            runCount += 1
+
+            if runCount >= 10 {
+                Generate.isGenerateNow = false
+                timer.invalidate()
+            }
+        }
+
+        RunLoop.current.add(timer, forMode: .common)
+        RunLoop.current.run()
+
+    }
 }
 
 final class Worker: Thread {
+    static var nsAvailable = false
+    static var nsCondition = NSCondition()
+    private var saveChip: SaveChip<Chip>
 
+    init(saveChip: SaveChip<Chip>){
+        self.saveChip = saveChip
+    }
+
+    override func main() {
+        print("Worker thread started work")
+        while Generate.isGenerateNow {
+            while !Generate.nsAvailable {
+                Generate.nsCondition.wait()
+            }
+            while !saveChip.isEmpty {
+                if let chip = saveChip.pop() {
+                    chip.sodering()
+                    print("Remove \(chip)")
+                }
+            }
+            Generate.nsAvailable = false
+        }
+        print("Worker thread finish work")
+    }
 }
+
